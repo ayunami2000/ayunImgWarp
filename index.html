@@ -68,7 +68,7 @@
 				ctx.fillStyle = makeRGBA();
 				box.setAttribute("width", canvas.width);
 				box.setAttribute("height", canvas.height);
-				if (fore.src.startsWith("d")) {
+				if (fore.src.startsWith("d") && back.src.startsWith("d")) {
 					tl = [ 147, 122 ];
 					tr = [ 855, 220 ];
 					br = [ 869, 630 ];
@@ -83,7 +83,7 @@
 			};
 
 			fore.onload = function() {
-				if (fore.src.startsWith("d")) {
+				if (fore.src.startsWith("d") && back.src.startsWith("d")) {
 					tl = [ 147, 122 ];
 					tr = [ 855, 220 ];
 					br = [ 869, 630 ];
