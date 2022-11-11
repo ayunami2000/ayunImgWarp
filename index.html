@@ -4,6 +4,32 @@
 		<title>ayunImgWarp</title>
 		<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 		<script type="text/javascript" src="perspective.min.js"></script>
+		<style>
+			#holder {
+				position: relative;
+			}
+			#canvas, #box {
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+			}
+			#canvas {
+				cursor: none;
+			}
+			#box {
+				transition: opacity 250ms ease 2s;
+				opacity: 0;
+			}
+			#box.change {
+				transition: none;
+				opacity: 1;
+			}
+			#dl {
+				text-decoration: underline;
+			}
+		</style>
 	</head>
 	<body>
 		Background image: <input id="uploadBack" type="file" accept="image/*"/>
@@ -14,16 +40,18 @@
 		<br/>
 		Tint Strength: <input id="tinto" type="range" min="0" max="255" value="111"/>
 		<br/>
+		Handle Size: <input id="handleSize" type="range" min="1" max="100" value="15"/>
+		<br/>
 		<a id="dl" download="edit.png">Download</a>
 		<br/>
-		<div id="holder" style="width: 100px; height: 100px; position: relative;">
-			<canvas id="canvas" width="100" height="100" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;"></canvas>
+		<div id="holder" style="width: 100px; height: 100px;">
+			<canvas id="canvas" width="100" height="100"></canvas>
 			<br/>
-			<svg id="box" width="100" height="100" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
-				<path id="boxtl" d="M 10 0 H 0 V 10" fill="transparent" stroke="black" stroke-width="2"/>
-				<path id="boxtr" d="M 90 0 H 100 V 10" fill="transparent" stroke="black" stroke-width="2"/>
-				<path id="boxbr" d="M 90 100 H 100 V 90" fill="transparent" stroke="black" stroke-width="2"/>
-				<path id="boxbl" d="M 10 100 H 0 V 90" fill="transparent" stroke="black" stroke-width="2"/>
+			<svg id="box" width="100" height="100" stroke="black" stroke-width="3">
+				<path id="boxtl" d="M 15 0 H 0 V 15" fill="transparent"/>
+				<path id="boxtr" d="M 85 0 H 100 V 15" fill="transparent"/>
+				<path id="boxbr" d="M 85 100 H 100 V 85" fill="transparent"/>
+				<path id="boxbl" d="M 15 100 H 0 V 85" fill="transparent"/>
 			</svg>
 		</div>
 		<script>
@@ -41,7 +69,8 @@
 				holder = document.getElementById("holder"),
 				tint = document.getElementById("tint"),
 				tinto = document.getElementById("tinto"),
-				dl = document.getElementById("dl");
+				dl = document.getElementById("dl"),
+				hsin = document.getElementById("handleSize");
 			
 			let tl = [ 0, 0 ],
 				tr = [ 100, 0 ],
@@ -65,6 +94,7 @@
 			back.onload = function() {
 				canvas.width = holder.style.width = back.width;
 				canvas.height = holder.style.height = back.height;
+				hsin.setAttribute("max", Math.max(canvas.width, canvas.height) / 4);
 				ctx.fillStyle = makeRGBA();
 				box.setAttribute("width", canvas.width);
 				box.setAttribute("height", canvas.height);
@@ -98,7 +128,25 @@
 			};
 
 			let boxClick = 0,
-				startPos = [ 0, 0 ];
+				startPos = [ 0, 0 ],
+				handleSize = 15;
+			
+			function setHandleSize(sz) {
+				handleSize = sz;
+				const fsz = sz / 5;
+				box.setAttribute("stroke-width", fsz);
+				onFrame();
+			}
+
+			hsin.oninput = function() {
+				setHandleSize(+this.value);
+				onChange();
+			};
+
+			hsin.ondblclick = function() {
+				this.value = 15;
+				this.oninput();
+			};
 			
 			function handleHandles(e) {
 				let ctl = boxClick == 1,
@@ -108,15 +156,27 @@
 					cg = boxClick == 5;
 
 				if (!boxClick) {
-					ctl = Math.abs(e.offsetX - tl[0]) <= 10 && Math.abs(e.offsetY - tl[1]) <= 10;
+					ctl = Math.abs(e.offsetX - tl[0]) <= handleSize && Math.abs(e.offsetY - tl[1]) <= handleSize;
 					if (!ctl) {
-						ctr = Math.abs(e.offsetX - tr[0]) <= 10 && Math.abs(e.offsetY - tr[1]) <= 10;
+						ctr = Math.abs(e.offsetX - tr[0]) <= handleSize && Math.abs(e.offsetY - tr[1]) <= handleSize;
 						if (!ctr) {
-							cbr = Math.abs(e.offsetX - br[0]) <= 10 && Math.abs(e.offsetY - br[1]) <= 10;
+							cbr = Math.abs(e.offsetX - br[0]) <= handleSize && Math.abs(e.offsetY - br[1]) <= handleSize;
 							if (!cbr) {
-								cbl = Math.abs(e.offsetX - bl[0]) <= 10 && Math.abs(e.offsetY - bl[1]) <= 10;
+								cbl = Math.abs(e.offsetX - bl[0]) <= handleSize && Math.abs(e.offsetY - bl[1]) <= handleSize;
 								if (!cbl) {
-									cg = true;
+									// https://stackoverflow.com/a/29915728/6917520
+									const vs = [ tl, tr, br, bl ];
+									cg = false;
+									for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+										const xi = vs[i][0],
+											yi = vs[i][1],
+											xj = vs[j][0],
+											yj = vs[j][1];
+
+										if (((yi > e.offsetY) != (yj > e.offsetY)) && (e.offsetX < (xj - xi) * (e.offsetY - yi) / (yj - yi) + xi)) {
+											cg = !cg;
+										}
+									}
 								}
 							}
 						}
@@ -151,7 +211,7 @@
 						bl[1] = e.offsetY;
 					}
 					return 4;
-				} else {
+				} else if (cg) {
 					box.style.cursor = "move";
 					if (boxClick) {
 						tl[0] += e.offsetX - startPos[0];
@@ -166,6 +226,9 @@
 						startPos[1] = e.offsetY;
 					}
 					return 5;
+				} else {
+					box.style.cursor = "initial";
+					return 0;
 				}
 			}
 
@@ -183,7 +246,17 @@
 				boxClick = 0;
 			};
 
+			let chto = -1;
+
+			function onChange() {
+				if (chto != -1) clearTimeout(chto);
+				box.className.baseVal = "change";
+				chto = setTimeout(() => box.className.baseVal = "", 0);
+			}
+
 			box.onmousemove = function(e) {
+				onChange();
+				if (e.button != 0) return;
 				handleHandles(e);
 				onFrame();
 			};
@@ -208,13 +281,57 @@
 				this.removeAttribute("href");
 			};
 
+			function rewriteTouches(e) {
+				const t = { button: 0, offsetX: 0, offsetY: 0 },
+					ts = e.targetTouches,
+					bcr = e.target.getBoundingClientRect();
+				for (let i = 0; i < ts.length; i++) {
+					t.offsetX += ts[i].clientX - bcr.x;
+					t.offsetY += ts[i].clientY - bcr.y;
+				}
+				t.offsetX /= ts.length;
+				t.offsetY /= ts.length;
+				return t;
+			}
+
+			let touching = false;
+
+			box.ontouchstart = function(e) {
+				e.preventDefault();
+				const rw = rewriteTouches(e);
+				if (touching) {
+					box.onmousemove(rw);
+				} else {
+					box.onmousedown(rw);
+				}
+				touching = true;
+			};
+
+			box.ontouchmove = function(e) {
+				e.preventDefault();
+				const rw = rewriteTouches(e);
+				box.onmousemove(rw);
+				touching = true;
+			};
+
+			box.ontouchend = function(e) {
+				e.preventDefault();
+				const rw = rewriteTouches(e);
+				if (e.touches.length < 2) {
+					box.onmouseup(rw);
+					touching = false;
+				} else {
+					box.onmousemove(rw);
+				}
+			};
+
 			function onFrame() {
 				ctx.clearRect(0, 0, canvas.width, canvas.height);
 				ctx.drawImage(back, 0, 0);
-				boxtl.setAttribute("d", `M ${tl[0] + 10} ${tl[1]} H ${tl[0]} V ${tl[1] + 10}`);
-				boxtr.setAttribute("d", `M ${tr[0] - 10} ${tr[1]} H ${tr[0]} V ${tr[1] + 10}`);
-				boxbr.setAttribute("d", `M ${br[0] - 10} ${br[1]} H ${br[0]} V ${br[1] - 10}`);
-				boxbl.setAttribute("d", `M ${bl[0] + 10} ${bl[1]} H ${bl[0]} V ${bl[1] - 10}`);
+				boxtl.setAttribute("d", `M ${tl[0] + handleSize} ${tl[1]} H ${tl[0]} V ${tl[1] + handleSize}`);
+				boxtr.setAttribute("d", `M ${tr[0] - handleSize} ${tr[1]} H ${tr[0]} V ${tr[1] + handleSize}`);
+				boxbr.setAttribute("d", `M ${br[0] - handleSize} ${br[1]} H ${br[0]} V ${br[1] - handleSize}`);
+				boxbl.setAttribute("d", `M ${bl[0] + handleSize} ${bl[1]} H ${bl[0]} V ${bl[1] - handleSize}`);
 				try {
 					(new Perspective(ctx, fore)).draw([ tl, tr, br, bl ]);
 				} catch (e) {
